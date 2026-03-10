@@ -1,8 +1,8 @@
 services:
 
-  # ── fiche: TCP pastebin ──────────────────────────────────────────────────────
+  # fiche: TCP pastebin 
   fiche:
-    build: .
+    image: leprechaunit/fiche:latest
     container_name: fiche
     restart: unless-stopped
     ports:
@@ -15,7 +15,7 @@ services:
       - "./data/paste:/data/paste"
       - "./data/log:/data/log"
 
-  # ── termbin-web: nginx static file server ────────────────────────────────────
+  # termbin-web: nginx static file server
   termbin-web:
     image: nginx:alpine
     container_name: termbin-web
