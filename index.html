@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>*ChangeMe* Termbin</title>
+
+<style>
+
+body{
+    margin:0;
+    background:black;
+    color:#00ff9c;
+    font-family: "Courier New", monospace;
+    overflow-x:hidden;
+}
+
+/* CRT scanlines */
+
+body:after{
+    content:"";
+    pointer-events:none;
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(255,255,255,0.05),
+        rgba(255,255,255,0.05) 1px,
+        transparent 1px,
+        transparent 3px
+    );
+    z-index:1;
+}
+
+/* center panel */
+
+.container{
+    position:relative;
+    z-index:2;
+    max-width:900px;
+    margin:0 auto;
+    padding:40px 20px 80px;
+    text-align:center;
+}
+
+/* logo */
+
+.logo{
+    font-size:clamp(36px, 10vw, 64px);
+    letter-spacing:8px;
+    text-shadow:
+        0 0 5px #00ff9c,
+        0 0 10px #00ff9c,
+        0 0 20px #00ff9c;
+    animation:glow 2s infinite alternate;
+}
+
+@keyframes glow{
+    from{ text-shadow:0 0 10px #00ff9c }
+    to{ text-shadow:0 0 25px #00ff9c }
+}
+
+/* subtitle */
+
+.subtitle{
+    margin-top:10px;
+    font-size:clamp(14px, 3.5vw, 18px);
+    color:#66ffd0;
+}
+
+/* instructions box */
+
+.box{
+    margin-top:40px;
+    border:2px solid #00ff9c;
+    padding:30px;
+    text-align:left;
+    background:rgba(0,0,0,0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.box h3 {
+    margin-top:0;
+    font-size:clamp(14px, 3vw, 16px);
+}
+
+.box p {
+    font-size:clamp(13px, 3vw, 15px);
+    line-height:1.6;
+}
+
+/* section divider */
+.section {
+    margin-top: 24px;
+    border-top: 1px solid rgba(0,255,156,0.3);
+    padding-top: 20px;
+}
+
+.section-label {
+    font-size: clamp(11px, 2.5vw, 13px);
+    color: #33ffbb;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+}
+
+.use-case {
+    font-size: clamp(12px, 2.8vw, 13px);
+    color: #66ffd0;
+    margin: 6px 0 10px;
+    font-style: italic;
+}
+
+pre{
+    overflow-x:auto;
+    font-size:clamp(11px, 2.8vw, 14px);
+    line-height:1.6;
+    margin:0;
+    white-space:pre;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* scrolling text */
+
+.scroller-wrap {
+    position:fixed;
+    bottom:0;
+    left:0;
+    width:100%;
+    overflow:hidden;
+    background: rgba(0,0,0,0.8);
+    border-top: 1px solid rgba(0,255,156,0.3);
+    padding: 8px 0;
+    z-index:3;
+}
+
+.scroller{
+    display:inline-block;
+    white-space:nowrap;
+    font-size:clamp(13px, 3vw, 18px);
+    animation:scroll 30s linear infinite;
+}
+
+@keyframes scroll{
+    from{ transform:translateX(100vw); }
+    to{ transform:translateX(-100%); }
+}
+
+/* matrix canvas */
+
+canvas{
+    position:fixed;
+    top:0;
+    left:0;
+    z-index:-1;
+    filter: blur(2px);
+}
+
+/* footer */
+
+.footer{
+    margin-top:30px;
+    font-size:14px;
+    color:#33ffbb;
+}
+
+/* responsive adjustments */
+
+@media (max-width: 600px) {
+    .container {
+        padding: 24px 14px 70px;
+    }
+
+    .box {
+        padding: 18px 14px;
+    }
+
+    .logo {
+        letter-spacing: 4px;
+    }
+}
+
+</style>
+</head>
+
+<body>
+
+<canvas id="matrix"></canvas>
+
+<div class="container">
+
+<div class="logo">
+*ChangeMe* TERMBIN
+</div>
+
+<div class="subtitle">
+Simple TCP pastebin
+</div>
+
+<div class="box">
+
+<h3>HOW TO USE</h3>
+
+<p>
+Upload any command output or text file directly from your terminal using netcat.
+<br/>
+The server returns a unique URL containing your uploaded content.
+</p>
+
+<!-- Linux / macOS -->
+<div class="section">
+    <div class="section-label">Linux / macOS — Text file</div>
+    <div class="use-case">Use case: pipe any file directly to termbin</div>
+<pre>
+cat file.txt | nc changeme.com 9999
+</pre>
+<br/>
+<div class="section-label">Linux / macOS — Command output</div>
+<div class="use-case">Use case: pipe any command output directly to termbin</div>
+<pre>
+ls -la | nc changeme.com 9999
+</pre>
+</div>
+
+
+<!-- Delete paste -->
+<div class="section">
+    <div class="section-label">Delete a paste</div>
+    <div class="use-case">Use case: remove a paste you uploaded — requires the delete token returned at upload time</div>
+<pre>
+# Linux / macOS
+echo -e "slug\ntoken" | nc changeme.com 9998
+
+</pre>
+</div>
+
+</div>
+
+<div class="footer">
+<a href="https://github.com/Leproide/termbin-reborn" target="_blank" style="color:#33ffbb;">Leproide/TermbinReborn</a>
+</div>
+
+</div>
+
+<div class="scroller-wrap">
+    <span class="scroller">
+        *** welcome to termbin — the simplest terminal pastebin — upload from any shell — no login — no bullshit — just pipe and share — patched by Leprechaun ***&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;*** welcome to termbin — the simplest terminal pastebin — upload from any shell — no login — no bullshit — just pipe and share — patched by Leprechaun ***
+    </span>
+</div>
+
+<script>
+
+/* MATRIX RAIN */
+
+const canvas = document.getElementById("matrix");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+    canvas.height = window.innerHeight;
+    canvas.width = window.innerWidth;
+}
+resize();
+window.addEventListener("resize", resize);
+
+const letters = "01TERMBINUPLOAD";
+const fontSize = 16;
+
+let drops = [];
+
+function initDrops(){
+    const columns = Math.floor(canvas.width / fontSize);
+    drops = [];
+    for(let x=0;x<columns;x++) drops[x]=1;
+}
+initDrops();
+window.addEventListener("resize", initDrops);
+
+function draw(){
+
+ctx.fillStyle="rgba(0,0,0,0.05)";
+ctx.fillRect(0,0,canvas.width,canvas.height);
+
+ctx.fillStyle="#00ff9c";
+ctx.font=fontSize+"px monospace";
+
+for(let i=0;i<drops.length;i++){
+
+const text=letters[Math.floor(Math.random()*letters.length)];
+
+ctx.fillText(text,i*fontSize,drops[i]*fontSize);
+
+if(drops[i]*fontSize>canvas.height && Math.random()>0.975)
+drops[i]=0;
+
+drops[i]++;
+
+}
+
+}
+
+setInterval(draw,35);
+
+</script>
+
+</body>
+</html>

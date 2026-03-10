@@ -1,0 +1,28 @@
+services:
+
+  # ── fiche: TCP pastebin ──────────────────────────────────────────────────────
+  fiche:
+    build: .
+    container_name: fiche
+    restart: unless-stopped
+    ports:
+      - "${FICHE_PORT:-9999}:9999"          # upload
+      - "${FICHE_DELETE_PORT:-9998}:9998"   # delete: echo -e "slug\ntoken" | nc domain 9998
+    environment:
+      FICHE_DOMAIN: ${FICHE_DOMAIN}
+      FICHE_ARGS:   ${FICHE_ARGS}
+    volumes:
+      - "./data/paste:/data/paste"
+      - "./data/log:/data/log"
+
+  # ── termbin-web: nginx static file server ────────────────────────────────────
+  termbin-web:
+    image: nginx:alpine
+    container_name: termbin-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${NGINX_PORT:-62365}:80"
+    volumes:
+      - "./data/paste:/srv/paste:ro"
+      - "./nginx.conf:/etc/nginx/nginx.conf:ro"
+      - "./index.html:/srv/static/index.html:ro"
