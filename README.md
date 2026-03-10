@@ -4,6 +4,9 @@ A patched, production-ready Docker image of [fiche/termbin](https://github.com/s
 
 This fork fixes four silent bugs present in the upstream C source and adds self-service **slug deletion** support.
 
+<img width="1920" height="927" alt="immagine" src="https://github.com/user-attachments/assets/69b68143-371d-4667-a76d-aa39474dd21b" />
+
+
 ---
 
 ## Quick start
