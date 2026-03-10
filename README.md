@@ -1,8 +1,8 @@
-# leprechaunit/fiche
+# Termbin Reborn (fiche)
 
-A patched, production-ready Docker image of [fiche](https://github.com/solusipse/fiche), the minimal TCP pastebin (`cat file | nc domain 9999`).
+A patched, production-ready Docker image of [fiche/termbin](https://github.com/solusipse/fiche), the minimal TCP pastebin (`cat file | nc domain 9999`).
 
-This fork fixes four silent bugs present in the upstream C source and adds **slug deletion** support.
+This fork fixes four silent bugs present in the upstream C source and adds self-service **slug deletion** support.
 
 ---
 
