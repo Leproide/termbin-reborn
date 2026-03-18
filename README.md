@@ -200,3 +200,4 @@ The original approach called `calloc(buffer_len)` for every connection regardles
 
 - Patched source and full Docker stack: https://github.com/Leproide/termbin-reborn
 - Upstream original: https://github.com/solusipse/fiche
+- Docker HUB: https://hub.docker.com/r/leprechaunit/fiche
