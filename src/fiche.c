@@ -3,6 +3,22 @@ Fiche - Command line pastebin for sharing terminal output.
 
 -------------------------------------------------------------------------------
 
+termbin-reborn patches
+    Author: https://github.com/Leproide
+    Repo:   https://github.com/Leproide/termbin-reborn
+
+    This file is part of a derivative work distributed under the GNU General
+    Public License v3.0 (GPL-3.0) or (at your option) any later version. See the
+    LICENSE file for the full text. The original upstream notice (MIT) is
+    preserved below, as the MIT terms require.
+
+    This program is distributed in the hope that it will be useful, but WITHOUT
+    ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+    FOR A PARTICULAR PURPOSE. See the GNU General Public License for details.
+
+-------------------------------------------------------------------------------
+
+Upstream: Fiche by solusipse
 License: MIT (http://www.opensource.org/licenses/mit-license.php)
 Repository: https://github.com/solusipse/fiche/
 Live example: http://termbin.com
@@ -41,6 +57,9 @@ $ cat fiche.c | nc localhost 9999
 
 #include <fcntl.h>
 #include <netdb.h>
+#include <errno.h>
+#include <stdint.h>
+#include <sys/random.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -189,7 +208,7 @@ static void get_date(char *buf);
 /**
  * @brief Generates a random delete token
  */
-static void generate_token(char *out);
+static int generate_token(char *out);
 
 /**
  * @brief Saves delete token to .token file in slug directory
@@ -207,9 +226,65 @@ static void *handle_delete(void *args);
 static void *run_delete_server(void *arg);
 
 /**
- * @brief Time seed
+ * @brief Fill a buffer with cryptographically-secure random bytes.
+ *
+ * SECURITY: slugs and especially delete tokens must be unpredictable. The
+ * original code used rand_r() seeded once with time(NULL): a 32-bit,
+ * guessable-at-startup seed shared (without locking) across all worker
+ * threads. Since slugs are public (they live in the paste URL), an attacker
+ * who knows the approximate start time can brute-force the seed and then
+ * derive the delete token of any paste. We use getrandom(2) instead, with a
+ * /dev/urandom fallback for kernels/libc without the syscall.
+ *
+ * @return 0 on success, -1 on failure (caller must treat as fatal).
  */
-unsigned int seed;
+static int secure_random_bytes(void *buf, size_t len) {
+    uint8_t *p = (uint8_t *)buf;
+    size_t off = 0;
+
+    while (off < len) {
+        ssize_t r = getrandom(p + off, len - off, 0);
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            break; // fall through to /dev/urandom
+        }
+        off += (size_t)r;
+    }
+    if (off == len) return 0;
+
+    // Fallback: read from /dev/urandom
+    int fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    while (off < len) {
+        ssize_t r = read(fd, p + off, len - off);
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            close(fd);
+            return -1;
+        }
+        if (r == 0) { close(fd); return -1; }
+        off += (size_t)r;
+    }
+    close(fd);
+    return 0;
+}
+
+/**
+ * @brief Pick a uniform index in [0, n) from a secure byte, rejecting the
+ *        biased tail so the distribution stays uniform (n <= 256).
+ *
+ * @return index on success, -1 on RNG failure.
+ */
+static int secure_index(size_t n) {
+    if (n == 0 || n > 256) return -1;
+    const unsigned limit = 256U - (256U % (unsigned)n); // largest multiple of n
+    for (;;) {
+        uint8_t b;
+        if (secure_random_bytes(&b, 1) != 0) return -1;
+        if (b < limit) return (int)(b % (unsigned)n);
+        // else reject and retry (removes modulo bias)
+    }
+}
 
 /******************************************************************************
  * Public fiche functions
@@ -252,8 +327,6 @@ void fiche_init(Fiche_Settings *settings) {
 }
 
 int fiche_run(Fiche_Settings settings) {
-
-    seed = time(NULL);
 
     // Display welcome message
     {
@@ -756,10 +829,13 @@ static void *handle_connection(void *args) {
     char token[TOKEN_LEN + 1];
     int has_token = 0;
     if (c->settings->delete_port > 0) {
-        generate_token(token);
-        has_token = (save_token(c->settings, token, slug) == 0);
-        if (!has_token) {
-            print_error("Couldn't save delete token for: %s.", slug);
+        if (generate_token(token) != 0) {
+            print_error("CSPRNG failed, no delete token generated for: %s.", slug);
+        } else {
+            has_token = (save_token(c->settings, token, slug) == 0);
+            if (!has_token) {
+                print_error("Couldn't save delete token for: %s.", slug);
+            }
         }
     }
 
@@ -795,7 +871,7 @@ static void *handle_connection(void *args) {
                     "echo -e \"%s\\\\n%s\" | nc %s %d\n",
                     domain, slug,
                     slug, token, host, c->settings->delete_port);
-                write(c->socket, resp, strlen(resp));
+                (void)!write(c->socket, resp, strlen(resp));
                 free(resp);
             }
         } else {
@@ -803,7 +879,7 @@ static void *handle_connection(void *args) {
             const size_t len = strlen(domain) + strlen(slug) + 3;
             char url[len];
             snprintf(url, len, "%s/%s\n", domain, slug);
-            write(c->socket, url, len);
+            (void)!write(c->socket, url, len);
         }
     }
 
@@ -838,13 +914,19 @@ static void *handle_connection(void *args) {
  * Token helpers
  */
 
-static void generate_token(char *out) {
+/**
+ * @return 0 on success, -1 if the CSPRNG failed (token must NOT be used).
+ */
+static int generate_token(char *out) {
     static const char syms[] = TOKEN_SYMBOLS;
     const size_t nsyms = sizeof(syms) - 1;
     for (int i = 0; i < TOKEN_LEN; i++) {
-        out[i] = syms[rand_r(&seed) % nsyms];
+        int idx = secure_index(nsyms);
+        if (idx < 0) return -1;
+        out[i] = syms[idx];
     }
     out[TOKEN_LEN] = '\0';
+    return 0;
 }
 
 static int save_token(const Fiche_Settings *s, const char *token, const char *slug) {
@@ -889,13 +971,13 @@ static void *handle_delete(void *args) {
 
     char *nl = memchr(buf, '\n', (size_t)n);
     if (!nl) {
-        write(c->socket, "invalid request\n", 16);
+        (void)!write(c->socket, "invalid request\n", 16);
         close(c->socket); free(c); pthread_exit(NULL); return NULL;
     }
 
     size_t slug_len = (size_t)(nl - buf);
     if (slug_len == 0 || slug_len >= sizeof(slug)) {
-        write(c->socket, "invalid slug\n", 13);
+        (void)!write(c->socket, "invalid slug\n", 13);
         close(c->socket); free(c); pthread_exit(NULL); return NULL;
     }
     memcpy(slug, buf, slug_len);
@@ -905,7 +987,7 @@ static void *handle_delete(void *args) {
     char *token_start = nl + 1;
     size_t token_raw_len = (size_t)(buf + n - token_start);
     if (token_raw_len == 0 || token_raw_len >= sizeof(token_in)) {
-        write(c->socket, "invalid token\n", 14);
+        (void)!write(c->socket, "invalid token\n", 14);
         close(c->socket); free(c); pthread_exit(NULL); return NULL;
     }
     memcpy(token_in, token_start, token_raw_len);
@@ -918,7 +1000,7 @@ static void *handle_delete(void *args) {
     for (int i = 0; slug[i]; i++) {
         char ch = slug[i];
         if (!((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9'))) {
-            write(c->socket, "invalid slug\n", 13);
+            (void)!write(c->socket, "invalid slug\n", 13);
             close(c->socket); free(c); pthread_exit(NULL); return NULL;
         }
     }
@@ -935,12 +1017,12 @@ static void *handle_delete(void *args) {
     FILE *f = fopen(token_path, "r");
     free(token_path);
     if (!f) {
-        write(c->socket, "not found\n", 10);
+        (void)!write(c->socket, "not found\n", 10);
         close(c->socket); free(c); pthread_exit(NULL); return NULL;
     }
     char token_stored[TOKEN_LEN + 4];
     memset(token_stored, 0, sizeof(token_stored));
-    fgets(token_stored, sizeof(token_stored), f);
+    (void)!fgets(token_stored, sizeof(token_stored), f);
     fclose(f);
     // Strip trailing \n and \r left by fgets
     for (int i = 0; token_stored[i]; i++) {
@@ -960,7 +1042,7 @@ static void *handle_delete(void *args) {
     }
 
     if (!match) {
-        write(c->socket, "unauthorized\n", 13);
+        (void)!write(c->socket, "unauthorized\n", 13);
         close(c->socket); free(c); pthread_exit(NULL); return NULL;
     }
 
@@ -979,10 +1061,10 @@ static void *handle_delete(void *args) {
 
     snprintf(dir_path, dlen, "%s/%s", c->settings->output_dir_path, slug);
     if (rmdir(dir_path) == 0) {
-        write(c->socket, "deleted\n", 8);
+        (void)!write(c->socket, "deleted\n", 8);
         print_status("Paste deleted: %s.", slug);
     } else {
-        write(c->socket, "error\n", 6);
+        (void)!write(c->socket, "error\n", 6);
     }
     free(dir_path);
 
@@ -1066,9 +1148,17 @@ static void generate_slug(char **output, uint8_t length, uint8_t extra_length) {
         return;
     }
 
-    // Take n-th symbol from symbol table and use it for slug generation
+    // Take n-th symbol from symbol table and use it for slug generation.
+    // Uses the CSPRNG: on failure, free the buffer and NULL it so the caller's
+    // existing (!slug) check aborts the connection cleanly.
+    const size_t nsyms = strlen(Fiche_Symbols);
     for (int i = 0; i < length + extra_length; i++) {
-        int n = rand_r(&seed) % strlen(Fiche_Symbols);
+        int n = secure_index(nsyms);
+        if (n < 0) {
+            free(*output);
+            *output = NULL;
+            return;
+        }
         *(output[0] + sizeof(char) * i) = Fiche_Symbols[n];
     }
 

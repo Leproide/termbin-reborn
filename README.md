@@ -1,8 +1,11 @@
 # Termbin Reborn (fiche)
 
-A patched, production-ready Docker image of [fiche/termbin](https://github.com/solusipse/fiche), the minimal TCP pastebin (`cat file | nc domain 9999`).
+A patched, self-hostable Docker stack built on [fiche/termbin](https://github.com/solusipse/fiche), the minimal TCP pastebin (`cat file | nc domain 9999`).
 
-This fork fixes four silent bugs present in the upstream C source and adds self-service **slug deletion** support.
+This fork fixes five bugs present in the upstream C source — including a predictable-RNG issue affecting slug and delete-token security — adds self-service **slug deletion**, and hardens the container (non-root, dropped capabilities, read-only rootfs).
+
+<img width="1920" height="927" alt="immagine" src="https://github.com/user-attachments/assets/69b68143-371d-4667-a76d-aa39474dd21b" />
+
 
 <img width="1920" height="927" alt="immagine" src="https://github.com/user-attachments/assets/69b68143-371d-4667-a76d-aa39474dd21b" />
 
@@ -157,6 +160,15 @@ volumes:
   - "./data/log:/data/log"
 ```
 
+Because the container runs as the non-root `fiche` user, the host `./data`
+directory must be writable by that user. If you hit "permission denied" on the
+volume, align ownership to the container's UID, e.g.:
+
+```bash
+# UID of the fiche user inside the image (check with: docker run --rm <img> id -u fiche)
+sudo chown -R 100999:100999 ./data   # example UID; use the one your image reports
+```
+
 ---
 
 ## Exposed ports
@@ -194,6 +206,21 @@ The original approach called `calloc(buffer_len)` for every connection regardles
 
 **Fix:** reordered cleanup so the socket is closed before the struct is freed.
 
+### 5 — Predictable slugs and delete tokens
+
+Slugs and delete tokens were generated with `rand_r()` seeded once by `time(NULL)`: a 32-bit, guessable-at-startup seed, shared across all worker threads without locking (a data race). Because slugs are public — they live in the paste URL — an attacker who knows the approximate start time can brute-force the seed and derive the delete token of any paste, then delete it.
+
+**Fix:** both slugs and tokens now come from `getrandom(2)` (with a `/dev/urandom` fallback), with rejection sampling to remove modulo bias. Generation failure is treated as fatal for that request instead of emitting a weak value. The shared `seed` global and `rand_r` are gone.
+
+---
+
+## Hardening
+
+- **Non-root container.** The image runs as an unprivileged `fiche` user. fiche binds ports > 1024, so root is unnecessary; this contains the blast radius of any memory-safety bug in the C parser.
+- **`docker-compose` builds from source** (`build: .`) and tags the image, so the running binary matches this repository rather than an opaque published image.
+- **Reduced capabilities.** The fiche service runs with `cap_drop: ALL`, `no-new-privileges`, and a `read_only` root filesystem (only the `/data` bind-mount is writable).
+- **`.env` is not committed.** Copy `.env.example` to `.env` and edit it; `.env`, `data/` and `*.log` are git-ignored.
+
 ---
 
 ## Source
@@ -201,3 +228,22 @@ The original approach called `calloc(buffer_len)` for every connection regardles
 - Patched source and full Docker stack: https://github.com/Leproide/termbin-reborn
 - Upstream original: https://github.com/solusipse/fiche
 - Docker HUB: https://hub.docker.com/r/leprechaunit/fiche
+<<<<<<< HEAD
+=======
+
+---
+
+## License
+
+This project is distributed under the **GNU General Public License v3.0**
+(GPL-3.0); see the `LICENSE` file.
+
+It is a derivative of [fiche](https://github.com/solusipse/fiche) by solusipse,
+originally licensed under the MIT License. The original MIT copyright notice is
+retained in `LICENSE`, as the MIT terms require. MIT permits redistribution of
+derivatives under the GPL-3.0.
+
+## Author
+
+Patches and Docker stack: [https://github.com/Leproide](https://github.com/Leproide)
+>>>>>>> 5915718 (fix(security): replace predictable RNG; harden container and licensing)

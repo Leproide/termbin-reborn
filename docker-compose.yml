@@ -1,7 +1,8 @@
 services:
 
-  # fiche: TCP pastebin 
+  # fiche: TCP pastebin
   fiche:
+    build: .
     image: leprechaunit/fiche:latest
     container_name: fiche
     restart: unless-stopped

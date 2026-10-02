@@ -1,0 +1,6 @@
+# Force LF on shell scripts and Docker files so Windows checkouts don't break
+# the container (CRLF in a shebang -> "no such file or directory").
+*.sh             text eol=lf
+docker-entrypoint.sh text eol=lf
+Dockerfile       text eol=lf
+*.conf           text eol=lf

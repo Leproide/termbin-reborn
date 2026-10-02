@@ -14,7 +14,8 @@ FROM debian:bookworm-slim
 
 COPY --from=builder /build/fiche          /usr/local/bin/fiche
 COPY docker-entrypoint.sh                 /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
+    && chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 9999
 EXPOSE 9998

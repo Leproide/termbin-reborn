@@ -1,0 +1,6 @@
+# Local runtime config (copy from .env.example and edit)
+.env
+
+# Paste data and logs
+data/
+*.log
