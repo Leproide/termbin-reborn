@@ -6,8 +6,9 @@ This fork fixes five bugs present in the upstream C source — including a predi
 
 <img width="1920" height="918" alt="immagine" src="https://github.com/user-attachments/assets/3e7d3311-48c2-4de4-ac45-db4278f606ba" />
 
+---
 
-# Fiche Ratelimit + Ban
+# Termbin Ratelimit + Ban
 
 [Fiche/Termbin Ratelimit](https://github.com/Leproide/Fiche-Termbin-Ratelimit/tree/master)
 
