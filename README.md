@@ -4,10 +4,7 @@ A patched, self-hostable Docker stack built on [fiche/termbin](https://github.co
 
 This fork fixes five bugs present in the upstream C source — including a predictable-RNG issue affecting slug and delete-token security — adds self-service **slug deletion**, and hardens the container (non-root, dropped capabilities, read-only rootfs).
 
-<img width="1920" height="927" alt="immagine" src="https://github.com/user-attachments/assets/69b68143-371d-4667-a76d-aa39474dd21b" />
-
-
-<img width="1920" height="927" alt="immagine" src="https://github.com/user-attachments/assets/69b68143-371d-4667-a76d-aa39474dd21b" />
+<img width="1920" height="918" alt="immagine" src="https://github.com/user-attachments/assets/3e7d3311-48c2-4de4-ac45-db4278f606ba" />
 
 
 ---
